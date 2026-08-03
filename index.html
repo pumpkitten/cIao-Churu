@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>キングダム覇道 親睦パズルソルバー</title>
+<style>
+:root{
+  --bg:#0d1117;--panel:#161b22;--panel2:#21262d;--line:#30363d;
+  --text:#f0f6fc;--muted:#9da7b3;--accent:#8b5cf6;--ok:#3fb950;--bad:#f85149;
+  --purple:#a987e8;--yellow:#efc45e;--blue:#70b8e8;--red:#e76f73;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:linear-gradient(180deg,#0d1117,#111827);
+  color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;
+}
+button,input,select{font:inherit}
+.app{max-width:1180px;margin:auto;padding:18px}
+header{display:flex;gap:14px;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+h1{font-size:clamp(22px,4vw,36px);margin:0 0 8px}
+.subtitle{color:var(--muted);line-height:1.6}
+.badge{white-space:nowrap;background:#251c3f;border:1px solid #6246a8;color:#d9cbff;padding:8px 12px;border-radius:999px;font-weight:800}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.layout{grid-template-columns:1fr}.badge{font-size:12px}header{align-items:center}}
+.card{background:rgba(22,27,34,.96);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 12px 34px #0004}
+.card h2{font-size:18px;margin:0 0 12px}
+.card h3{font-size:15px;margin:18px 0 10px;color:#d8dee9}
+.drop{
+  border:2px dashed #59636f;border-radius:14px;min-height:145px;padding:18px;text-align:center;
+  display:grid;place-items:center;background:#0f141b;cursor:pointer;transition:.15s
+}
+.drop.drag{border-color:var(--accent);background:#17132a}
+.drop strong{display:block;margin-bottom:8px}
+.drop small{color:var(--muted);line-height:1.6}
+#fileInput{display:none}
+.preview{margin-top:12px;display:none}
+.preview canvas{width:100%;max-height:360px;object-fit:contain;border-radius:12px;background:#090c10;border:1px solid var(--line)}
+.status{margin-top:10px;padding:10px 12px;border-radius:10px;background:#10151c;color:var(--muted);line-height:1.5}
+.status.ok{background:#102317;color:#a7e3b2}
+.status.warn{background:#2c2410;color:#f5d67d}
+.boardWrap{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.board{
+  display:grid;grid-template-columns:repeat(5,minmax(42px,68px));gap:7px;
+  padding:10px;border-radius:14px;background:#0b0f14;border:1px solid var(--line)
+}
+.cell{
+  aspect-ratio:1;border-radius:10px;border:1px solid #3a4450;background:#111820;color:#6f7b88;
+  display:grid;place-items:center;font-weight:900;cursor:pointer;user-select:none;transition:.1s
+}
+.cell.on{background:#e9edf2;color:#19212b;border-color:#fff;box-shadow:inset 0 0 18px #aab4c2}
+.cell:hover{transform:translateY(-1px)}
+.boardTools{display:grid;gap:8px;min-width:170px}
+.btn{
+  border:1px solid #48515c;background:#252c35;color:var(--text);padding:10px 13px;border-radius:10px;
+  font-weight:800;cursor:pointer
+}
+.btn:hover{filter:brightness(1.12)}
+.btn.primary{background:linear-gradient(135deg,#7651d6,#9b6cf2);border-color:#a98af0}
+.btn.good{background:#1f6f35;border-color:#3b9d53}
+.btn.danger{background:#4d2223;border-color:#7d3438}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,input[type=number]{
+  background:#0d131a;border:1px solid #46515e;color:var(--text);border-radius:9px;padding:9px
+}
+.conditions{display:grid;gap:8px}
+.condition{
+  display:grid;grid-template-columns:1fr 1.25fr .75fr auto;gap:7px;align-items:center;
+  background:#10161d;border:1px solid #2d3640;padding:8px;border-radius:11px
+}
+@media(max-width:500px){.condition{grid-template-columns:1fr 1fr}.condition .remove{grid-column:2}}
+.remove{padding:8px 10px}
+.solveBar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.counter{color:var(--muted)}
+.resultEmpty{color:var(--muted);padding:26px 4px;text-align:center}
+.solutionBoard{
+  display:grid;grid-template-columns:repeat(5,minmax(46px,78px));gap:7px;
+  justify-content:start;margin:12px 0
+}
+.solutionCell{
+  aspect-ratio:1;border-radius:10px;border:2px solid #ffffffaa;display:grid;place-items:center;
+  text-align:center;color:#15171b;font-weight:950;font-size:clamp(11px,2.1vw,16px);padding:3px
+}
+.solutionCell.off{visibility:hidden}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:10px}
+.legendItem{display:flex;align-items:center;gap:9px;background:#10161d;border:1px solid #2d3640;padding:9px;border-radius:10px}
+.swatch{width:25px;height:25px;border-radius:7px;border:2px solid #ffffffbb}
+.checks{display:grid;gap:7px;margin-top:10px}
+.check{padding:9px 11px;border-radius:10px;background:#102317;color:#ade7b7}
+.check.bad{background:#32191a;color:#ffb3b0}
+.nav{display:flex;gap:8px;align-items:center;margin-top:12px}
+details{margin-top:14px}
+summary{cursor:pointer;color:#d6c9ff;font-weight:800}
+.pieceFilters{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px;max-height:360px;overflow:auto;padding-right:4px}
+.pieceToggle{display:flex;align-items:center;gap:8px;background:#10161d;border:1px solid #2d3640;border-radius:10px;padding:8px}
+.miniShape{position:relative;width:43px;height:43px;flex:0 0 43px}
+.miniDot{position:absolute;width:12px;height:12px;border-radius:3px;border:1px solid #ffffff99}
+.note{font-size:13px;line-height:1.65;color:var(--muted)}
+.kicker{font-size:12px;font-weight:900;letter-spacing:.08em;color:#baa6ff;text-transform:uppercase}
+.toast{position:fixed;right:16px;bottom:16px;background:#242c36;border:1px solid #576372;color:white;padding:12px 15px;border-radius:11px;display:none;z-index:20}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div>
+    <div class="kicker">Kingdom Hadou Utility</div>
+    <h1>親睦パズルソルバー</h1>
+    <div class="subtitle">スクショを貼り付けて盤面を自動認識し、条件を設定して解答します。認識ミスはマスをタップして修正できます。</div>
+  </div>
+  <div class="badge">回転・反転は一切しません</div>
+</header>
+
+<div class="layout">
+  <section class="card">
+    <h2>1. 問題スクショ</h2>
+    <label class="drop" id="drop">
+      <input id="fileInput" type="file" accept="image/*">
+      <div>
+        <strong>クリックして画像を選択</strong>
+        <small>またはドラッグ＆ドロップ／スクショをコピーして Ctrl+V<br>同じゲーム画面レイアウトほど高精度です</small>
+      </div>
+    </label>
+    <div class="preview" id="preview"><canvas id="imageCanvas"></canvas></div>
+    <div class="status" id="detectStatus">画像を読み込むと、5×5の盤面候補を自動認識します。</div>
+
+    <h3>盤面マス数</h3>
+    <div class="inline">
+      <select id="expectedCount">
+        <option value="20" selected>20マス（標準）</option>
+        <option value="16">16マス</option>
+        <option value="24">24マス</option>
+        <option value="auto">自動判定</option>
+      </select>
+      <button class="btn" id="redetect">再認識</button>
+      <button class="btn" id="sample">今回の問題を読込</button>
+    </div>
+
+    <h3>認識された盤面</h3>
+    <div class="boardWrap">
+      <div class="board" id="board"></div>
+      <div class="boardTools">
+        <div class="note">白いマスが埋める場所です。誤認識したマスはタップでON/OFFできます。</div>
+        <button class="btn" id="clearBoard">全消去</button>
+        <button class="btn" id="fillBoard">全選択</button>
+        <div class="status" id="boardCount">0マス</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. 条件設定</h2>
+    <div class="conditions" id="conditions"></div>
+    <div class="inline" style="margin-top:10px">
+      <button class="btn" id="addCondition">＋ 条件を追加</button>
+      <button class="btn" id="clearConditions">条件を全削除</button>
+    </div>
+    <p class="note">例：「赤 B以上」は、赤色かつランクAまたはBのピースが対象です。数量は“使用するピース数”で数えます。</p>
+
+    <details>
+      <summary>使用できるピースを個別に変更</summary>
+      <p class="note">通常は全45ピースを有効のままで構いません。同じ色・ランク・番号でも形が違うピースは①②で区別しています。</p>
+      <div class="inline">
+        <button class="btn" id="enableAll">全て有効</button>
+        <button class="btn" id="disableAll">全て無効</button>
+      </div>
+      <div class="pieceFilters" id="pieceFilters"></div>
+    </details>
+
+    <div class="solveBar">
+      <button class="btn primary" id="solve">解答を探す</button>
+      <span class="counter" id="solveInfo">盤面を設定してください</span>
+    </div>
+  </section>
+</div>
+
+<section class="card" style="margin-top:16px">
+  <h2>3. 解答</h2>
+  <div id="result"><div class="resultEmpty">解答を探すと、ここに完成図が表示されます。</div></div>
+</section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const PIECES = [{"id":"A_P_6","rank":"A","color":"紫","number":6,"label":"A紫6","shape":[[0,0],[1,0],[1,1],[1,2]]},{"id":"A_P_3_1","rank":"A","color":"紫","number":3,"label":"A紫3①","shape":[[0,0],[1,0],[2,0],[2,1]]},{"id":"A_Y_3_1","rank":"A","color":"黄","number":3,"label":"A黄3①","shape":[[0,0],[0,1],[0,2],[1,2]]},{"id":"A_B_3_1","rank":"A","color":"青","number":3,"label":"A青3①","shape":[[0,0],[1,0],[2,0],[2,1]]},{"id":"A_R_4_1","rank":"A","color":"赤","number":4,"label":"A赤4①","shape":[[0,0],[1,0],[2,0],[2,1]]},{"id":"A_P_5","rank":"A","color":"紫","number":5,"label":"A紫5","shape":[[0,0],[0,1],[1,1],[2,1]]},{"id":"A_Y_5","rank":"A","color":"黄","number":5,"label":"A黄5","shape":[[0,0],[1,0],[1,1],[1,2]]},{"id":"A_Y_2","rank":"A","color":"黄","number":2,"label":"A黄2","shape":[[0,0],[0,1],[1,1],[2,1]]},{"id":"A_B_3_2","rank":"A","color":"青","number":3,"label":"A青3②","shape":[[0,0],[0,1],[0,2],[1,2]]},{"id":"A_R_4_2","rank":"A","color":"赤","number":4,"label":"A赤4②","shape":[[0,0],[1,0],[1,1],[1,2]]},{"id":"A_P_3_2","rank":"A","color":"紫","number":3,"label":"A紫3②","shape":[[0,0],[0,1],[0,2],[1,2]]},{"id":"A_Y_3_2","rank":"A","color":"黄","number":3,"label":"A黄3②","shape":[[0,0],[1,0],[2,0],[2,1]]},{"id":"A_B_6","rank":"A","color":"青","number":6,"label":"A青6","shape":[[0,0],[1,0],[1,1],[1,2]]},{"id":"A_B_2","rank":"A","color":"青","number":2,"label":"A青2","shape":[[0,0],[0,1],[1,1],[2,1]]},{"id":"A_R_3","rank":"A","color":"赤","number":3,"label":"A赤3","shape":[[0,0],[0,1],[1,1],[2,1]]},{"id":"A_R_2","rank":"A","color":"赤","number":2,"label":"A赤2","shape":[[0,0],[0,1],[0,2],[1,2]]},{"id":"B_P_4_1","rank":"B","color":"紫","number":4,"label":"B紫4①","shape":[[1,0],[2,0],[0,1],[1,1]]},{"id":"B_Y_7","rank":"B","color":"黄","number":7,"label":"B黄7","shape":[[0,0],[1,0],[1,1],[2,1]]},{"id":"B_B_7_1","rank":"B","color":"青","number":7,"label":"B青7①","shape":[[0,0],[0,1],[1,1],[1,2]]},{"id":"B_B_2","rank":"B","color":"青","number":2,"label":"B青2","shape":[[1,0],[0,1],[1,1],[0,2]]},{"id":"B_P_8","rank":"B","color":"紫","number":8,"label":"B紫8","shape":[[0,0],[1,0],[1,1],[2,1]]},{"id":"B_P_2","rank":"B","color":"紫","number":2,"label":"B紫2","shape":[[1,0],[0,1],[1,1],[0,2]]},{"id":"B_Y_3","rank":"B","color":"黄","number":3,"label":"B黄3","shape":[[1,0],[0,1],[1,1],[0,2]]},{"id":"B_B_7_2","rank":"B","color":"青","number":7,"label":"B青7②","shape":[[1,0],[2,0],[0,1],[1,1]]},{"id":"B_R_5","rank":"B","color":"赤","number":5,"label":"B赤5","shape":[[0,0],[0,1],[1,1],[1,2]]},{"id":"B_P_4_2","rank":"B","color":"紫","number":4,"label":"B紫4②","shape":[[0,0],[0,1],[1,1],[1,2]]},{"id":"B_Y_8","rank":"B","color":"黄","number":8,"label":"B黄8","shape":[[0,0],[0,1],[1,1],[1,2]]},{"id":"B_Y_1","rank":"B","color":"黄","number":1,"label":"B黄1","shape":[[1,0],[2,0],[0,1],[1,1]]},{"id":"B_B_6","rank":"B","color":"青","number":6,"label":"B青6","shape":[[0,0],[1,0],[1,1],[2,1]]},{"id":"B_R_3_1","rank":"B","color":"赤","number":3,"label":"B赤3①","shape":[[1,0],[2,0],[0,1],[1,1]]},{"id":"B_R_3_2","rank":"B","color":"赤","number":3,"label":"B赤3②","shape":[[0,0],[1,0],[1,1],[2,1]]},{"id":"B_R_2","rank":"B","color":"赤","number":2,"label":"B赤2","shape":[[1,0],[0,1],[1,1],[0,2]]},{"id":"C_P_5_1","rank":"C","color":"紫","number":5,"label":"C紫5①","shape":[[0,0],[0,1],[1,1],[0,2]]},{"id":"C_Y_9_1","rank":"C","color":"黄","number":9,"label":"C黄9①","shape":[[1,0],[0,1],[1,1],[2,1]]},{"id":"C_B_9","rank":"C","color":"青","number":9,"label":"C青9","shape":[[1,0],[0,1],[1,1],[2,1]]},{"id":"C_R_6_1","rank":"C","color":"赤","number":6,"label":"C赤6①","shape":[[0,0],[1,0],[2,0],[1,1]]},{"id":"C_P_4","rank":"C","color":"紫","number":4,"label":"C紫4","shape":[[1,0],[0,1],[1,1],[2,1]]},{"id":"C_Y_9_2","rank":"C","color":"黄","number":9,"label":"C黄9②","shape":[[0,0],[0,1],[1,1],[0,2]]},{"id":"C_B_7","rank":"C","color":"青","number":7,"label":"C青7","shape":[[0,0],[1,0],[2,0],[1,1]]},{"id":"C_R_6_2","rank":"C","color":"赤","number":6,"label":"C赤6②","shape":[[0,0],[0,1],[1,1],[0,2]]},{"id":"C_P_5_2","rank":"C","color":"紫","number":5,"label":"C紫5②","shape":[[0,0],[1,0],[2,0],[1,1]]},{"id":"C_P_1","rank":"C","color":"紫","number":1,"label":"C紫1","shape":[[1,0],[0,1],[1,1],[1,2]]},{"id":"C_Y_6","rank":"C","color":"黄","number":6,"label":"C黄6","shape":[[0,0],[1,0],[2,0],[0,1]]},{"id":"C_B_6","rank":"C","color":"青","number":6,"label":"C青6","shape":[[0,0],[0,1],[1,1],[0,2]]},{"id":"C_R_2","rank":"C","color":"赤","number":2,"label":"C赤2","shape":[[1,0],[0,1],[1,1],[2,1]]}];
+const RANK_VALUE={A:3,B:2,C:1};
+const COLOR_CSS={"紫":"var(--purple)","黄":"var(--yellow)","青":"var(--blue)","赤":"var(--red)"};
+const COLOR_HEX={"紫":"#a987e8","黄":"#efc45e","青":"#70b8e8","赤":"#e76f73"};
+
+let boardMask=Array(25).fill(false);
+let currentImage=null;
+let enabledIds=new Set(PIECES.map(p=>p.id));
+let solutions=[];
+let solutionIndex=0;
+let lastDetection=null;
+
+const $=s=>document.querySelector(s);
+const boardEl=$("#board"), conditionsEl=$("#conditions"), resultEl=$("#result");
+
+function toast(msg){
+  const t=$("#toast");t.textContent=msg;t.style.display="block";
+  clearTimeout(t._timer);t._timer=setTimeout(()=>t.style.display="none",2200);
+}
+function renderBoard(){
+  boardEl.innerHTML="";
+  boardMask.forEach((on,i)=>{
+    const b=document.createElement("button");
+    b.className="cell"+(on?" on":""); b.textContent=on?"✓":"·";
+    b.title=`${Math.floor(i/5)+1}行 ${i%5+1}列`;
+    b.onclick=()=>{boardMask[i]=!boardMask[i];renderBoard();};
+    boardEl.appendChild(b);
+  });
+  const n=boardMask.filter(Boolean).length;
+  $("#boardCount").textContent=`${n}マス / ${n/4}ピース`;
+  $("#boardCount").className="status "+(n>0&&n%4===0?"ok":"warn");
+  $("#solveInfo").textContent=n?`${n}マスを埋めます`:"盤面を設定してください";
+}
+function addCondition(color="紫",rank="A",count=1){
+  const row=document.createElement("div");row.className="condition";
+  row.innerHTML=`
+    <select class="condColor">
+      <option>紫</option><option>黄</option><option>青</option><option>赤</option>
+    </select>
+    <select class="condRank">
+      <option value="A">A以上</option><option value="B">B以上</option><option value="C">C以上</option>
+    </select>
+    <select class="condCount">
+      ${[1,2,3,4,5,6].map(n=>`<option value="${n}">${n}個</option>`).join("")}
+    </select>
+    <button class="btn danger remove">削除</button>`;
+  row.querySelector(".condColor").value=color;
+  row.querySelector(".condRank").value=rank;
+  row.querySelector(".condCount").value=String(count);
+  row.querySelector(".remove").onclick=()=>row.remove();
+  conditionsEl.appendChild(row);
+}
+function getConditions(){
+  return [...conditionsEl.querySelectorAll(".condition")].map(r=>({
+    color:r.querySelector(".condColor").value,
+    minRank:r.querySelector(".condRank").value,
+    count:Number(r.querySelector(".condCount").value)
+  }));
+}
+function shapePreview(piece){
+  const e=document.createElement("div");e.className="miniShape";
+  const maxX=Math.max(...piece.shape.map(a=>a[0])),maxY=Math.max(...piece.shape.map(a=>a[1]));
+  const size=12,gap=2;
+  piece.shape.forEach(([x,y])=>{
+    const d=document.createElement("i");d.className="miniDot";
+    d.style.left=`${(x+(2-maxX)/2)*(size+gap)}px`;
+    d.style.top=`${(y+(2-maxY)/2)*(size+gap)}px`;
+    d.style.background=COLOR_HEX[piece.color];e.appendChild(d);
+  });
+  return e;
+}
+function renderPieceFilters(){
+  const box=$("#pieceFilters");box.innerHTML="";
+  PIECES.forEach(p=>{
+    const lab=document.createElement("label");lab.className="pieceToggle";
+    const cb=document.createElement("input");cb.type="checkbox";cb.checked=enabledIds.has(p.id);
+    cb.onchange=()=>{cb.checked?enabledIds.add(p.id):enabledIds.delete(p.id);};
+    lab.append(cb,shapePreview(p));
+    const sp=document.createElement("span");sp.textContent=p.label;lab.appendChild(sp);
+    box.appendChild(lab);
+  });
+}
+function boardCellsSet(){
+  const s=new Set();
+  boardMask.forEach((on,i)=>{if(on)s.add(`${Math.floor(i/5)},${i%5}`)});
+  return s;
+}
+function validPlacementCells(piece,ox,oy){
+  return piece.shape.map(([x,y])=>[oy+y,ox+x]);
+}
+function conditionsSatisfied(pieceIndexes,conds){
+  return conds.every(c=>{
+    let n=0;
+    for(const idx of pieceIndexes){
+      const p=PIECES[idx];
+      if(p.color===c.color && RANK_VALUE[p.rank]>=RANK_VALUE[c.minRank]) n++;
+    }
+    return n>=c.count;
+  });
+}
+function conditionStillPossible(usedSet,remainingSlots,conds){
+  for(const c of conds){
+    let have=0,possible=0;
+    for(const idx of usedSet){
+      const p=PIECES[idx];
+      if(p.color===c.color&&RANK_VALUE[p.rank]>=RANK_VALUE[c.minRank]) have++;
+    }
+    if(have>=c.count) continue;
+    for(let i=0;i<PIECES.length;i++){
+      if(usedSet.has(i)||!enabledIds.has(PIECES[i].id)) continue;
+      const p=PIECES[i];
+      if(p.color===c.color&&RANK_VALUE[p.rank]>=RANK_VALUE[c.minRank]) possible++;
+    }
+    if(have+Math.min(possible,remainingSlots)<c.count) return false;
+  }
+  return true;
+}
+function solvePuzzle(){
+  const board=boardCellsSet(), n=board.size;
+  if(!n){toast("盤面を設定してください");return}
+  if(n%4!==0){toast("盤面マス数を4の倍数にしてください");return}
+  const pieceSlots=n/4;
+  const conds=getConditions();
+  const placements=[];
+  const byCell=new Map([...board].map(c=>[c,[]]));
+  PIECES.forEach((p,pi)=>{
+    if(!enabledIds.has(p.id))return;
+    const maxX=Math.max(...p.shape.map(s=>s[0])),maxY=Math.max(...p.shape.map(s=>s[1]));
+    for(let oy=0;oy<5-maxY;oy++)for(let ox=0;ox<5-maxX;ox++){
+      const cells=validPlacementCells(p,ox,oy).map(([r,c])=>`${r},${c}`);
+      if(cells.every(c=>board.has(c))){
+        const rec={pieceIndex:pi,cells,ox,oy};
+        const idx=placements.length;placements.push(rec);
+        cells.forEach(c=>byCell.get(c).push(idx));
+      }
+    }
+  });
+  solutions=[]; solutionIndex=0;
+  const limit=200;
+  const covered=new Set(),used=new Set(),chosen=[];
+  function rec(){
+    if(solutions.length>=limit)return;
+    if(covered.size===board.size){
+      if(chosen.length===pieceSlots && conditionsSatisfied([...used],conds)){
+        solutions.push(chosen.map(i=>placements[i]));
+      }
+      return;
+    }
+    if(chosen.length>=pieceSlots)return;
+    if(!conditionStillPossible(used,pieceSlots-chosen.length,conds))return;
+    let bestCell=null,bestCandidates=null;
+    for(const c of board){
+      if(covered.has(c))continue;
+      const cand=byCell.get(c).filter(i=>{
+        const p=placements[i];
+        return !used.has(p.pieceIndex)&&p.cells.every(x=>!covered.has(x));
+      });
+      if(!cand.length)return;
+      if(bestCandidates===null||cand.length<bestCandidates.length){bestCell=c;bestCandidates=cand}
+    }
+    for(const idx of bestCandidates){
+      const p=placements[idx];
+      used.add(p.pieceIndex);chosen.push(idx);p.cells.forEach(c=>covered.add(c));
+      rec();
+      p.cells.forEach(c=>covered.delete(c));chosen.pop();used.delete(p.pieceIndex);
+      if(solutions.length>=limit)return;
+    }
+  }
+  const start=performance.now();rec();const ms=Math.round(performance.now()-start);
+  if(!solutions.length){
+    resultEl.innerHTML=`<div class="resultEmpty">条件を満たす配置が見つかりませんでした。盤面・条件・使用可能ピースを確認してください。</div>`;
+    $("#solveInfo").textContent=`解なし（${ms}ms）`;return;
+  }
+  $("#solveInfo").textContent=`${solutions.length}${solutions.length===limit?"件以上":"件"}の解候補（${ms}ms）`;
+  renderSolution();
+}
+function renderSolution(){
+  const sol=solutions[solutionIndex];
+  const owner=Array(25).fill(null);
+  sol.forEach((pl,k)=>pl.cells.forEach(s=>{
+    const [r,c]=s.split(",").map(Number);owner[r*5+c]=k;
+  }));
+  const usedPieces=sol.map(pl=>PIECES[pl.pieceIndex]);
+  let html=`<div class="nav">
+    <button class="btn" id="prevSol">← 前</button>
+    <strong>${solutionIndex+1} / ${solutions.length}${solutions.length===200?"（先頭200件）":""}</strong>
+    <button class="btn" id="nextSol">次 →</button>
+    <button class="btn good" id="exportPng">完成図をPNG保存</button>
+  </div><div class="solutionBoard">`;
+  for(let i=0;i<25;i++){
+    if(!boardMask[i]){html+=`<div class="solutionCell off"></div>`;continue}
+    const k=owner[i],p=usedPieces[k];
+    html+=`<div class="solutionCell" style="background:${COLOR_HEX[p.color]}">${p.label}</div>`;
+  }
+  html+=`</div><div class="legend">`;
+  usedPieces.forEach(p=>{
+    html+=`<div class="legendItem"><span class="swatch" style="background:${COLOR_HEX[p.color]}"></span><strong>${p.label}</strong></div>`;
+  });
+  html+=`</div><div class="checks">`;
+  const conds=getConditions();
+  if(!conds.length) html+=`<div class="check">条件指定なし</div>`;
+  conds.forEach(c=>{
+    const found=usedPieces.filter(p=>p.color===c.color&&RANK_VALUE[p.rank]>=RANK_VALUE[c.minRank]).length;
+    html+=`<div class="check ${found>=c.count?"":"bad"}">✓ ${c.color} ${c.minRank}以上：${found} / ${c.count}</div>`;
+  });
+  html+=`</div><p class="note">すべて登録時の向きのまま配置しています。回転・反転した候補は探索していません。</p>`;
+  resultEl.innerHTML=html;
+  $("#prevSol").onclick=()=>{solutionIndex=(solutionIndex-1+solutions.length)%solutions.length;renderSolution()};
+  $("#nextSol").onclick=()=>{solutionIndex=(solutionIndex+1)%solutions.length;renderSolution()};
+  $("#exportPng").onclick=exportSolutionPng;
+}
+function exportSolutionPng(){
+  const sol=solutions[solutionIndex],owner=Array(25).fill(null);
+  sol.forEach((pl,k)=>pl.cells.forEach(s=>{const [r,c]=s.split(",").map(Number);owner[r*5+c]=k}));
+  const used=sol.map(pl=>PIECES[pl.pieceIndex]);
+  const cv=document.createElement("canvas");cv.width=1000;cv.height=1160;
+  const g=cv.getContext("2d");g.fillStyle="#111827";g.fillRect(0,0,cv.width,cv.height);
+  g.fillStyle="#f4f7fb";g.font="bold 46px sans-serif";g.fillText("親睦パズル 完成配置",70,72);
+  g.fillStyle="#b7c0cc";g.font="25px sans-serif";g.fillText("回転・反転なし",72,112);
+  const x0=70,y0=160,size=145,gap=12;
+  for(let r=0;r<5;r++)for(let c=0;c<5;c++){
+    const i=r*5+c;if(!boardMask[i])continue;
+    const p=used[owner[i]],x=x0+c*(size+gap),y=y0+r*(size+gap);
+    g.fillStyle=COLOR_HEX[p.color];roundRect(g,x,y,size,size,18,true);
+    g.strokeStyle="#ffffff";g.lineWidth=4;roundRect(g,x,y,size,size,18,false,true);
+    g.fillStyle="#17191e";g.textAlign="center";g.font="bold 26px sans-serif";
+    g.fillText(p.label,x+size/2,y+size/2+9);
+  }
+  g.textAlign="left";g.fillStyle="#f4f7fb";g.font="bold 28px sans-serif";g.fillText("使用ピース",70,990);
+  used.forEach((p,i)=>{
+    const x=70+(i%3)*295,y=1025+Math.floor(i/3)*55;
+    g.fillStyle=COLOR_HEX[p.color];g.fillRect(x,y-24,30,30);
+    g.fillStyle="#f4f7fb";g.font="bold 23px sans-serif";g.fillText(p.label,x+43,y);
+  });
+  const a=document.createElement("a");a.download="shinboku_solution.png";a.href=cv.toDataURL("image/png");a.click();
+}
+function roundRect(ctx,x,y,w,h,r,fill,stroke){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill)ctx.fill();if(stroke)ctx.stroke();
+}
+
+async function loadImageFile(file){
+  if(!file||!file.type.startsWith("image/")){toast("画像ファイルを選んでください");return}
+  const url=URL.createObjectURL(file),im=new Image();
+  im.onload=()=>{
+    currentImage=im;drawPreview(im);detectBoard(im);URL.revokeObjectURL(url);
+  };
+  im.src=url;
+}
+function drawPreview(im,overlay=null){
+  const cv=$("#imageCanvas"),maxW=900,scale=Math.min(1,maxW/im.naturalWidth);
+  cv.width=Math.round(im.naturalWidth*scale);cv.height=Math.round(im.naturalHeight*scale);
+  const g=cv.getContext("2d");g.drawImage(im,0,0,cv.width,cv.height);
+  if(overlay){
+    const sx=cv.width/overlay.procW,sy=cv.height/overlay.procH;
+    g.lineWidth=3;g.font="bold 18px sans-serif";g.textAlign="center";g.textBaseline="middle";
+    overlay.cells.forEach((v,i)=>{
+      const r=Math.floor(i/5),c=i%5;
+      const x=(overlay.x0+c*overlay.step)*sx,y=(overlay.y0+r*overlay.step)*sy,s=overlay.cell*sx;
+      g.strokeStyle=v?"#4cff79":"#ff5b5b";g.strokeRect(x,y,s,s);
+      if(v){g.fillStyle="#4cff79";g.fillText("✓",x+s/2,y+s/2)}
+    });
+  }
+  $("#preview").style.display="block";
+}
+function detectBoard(im){
+  const status=$("#detectStatus");status.className="status";status.textContent="盤面を解析中…";
+  requestAnimationFrame(()=>{
+    const maxW=460,scale=Math.min(1,maxW/im.naturalWidth);
+    const w=Math.round(im.naturalWidth*scale),h=Math.round(im.naturalHeight*scale);
+    const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+    const g=cv.getContext("2d",{willReadFrequently:true});g.drawImage(im,0,0,w,h);
+    const data=g.getImageData(0,0,w,h).data;
+    const score=new Float32Array(w*h);
+    for(let i=0,p=0;i<score.length;i++,p+=4){
+      const r=data[p],gg=data[p+1],b=data[p+2];
+      const mx=Math.max(r,gg,b),mn=Math.min(r,gg,b),lum=(r+gg+b)/3,ch=mx-mn;
+      score[i]=Math.max(0,Math.min(1,(lum-.7*ch)/255));
+    }
+    const integral=new Float64Array((w+1)*(h+1));
+    for(let y=0;y<h;y++){
+      let rowSum=0;
+      for(let x=0;x<w;x++){
+        rowSum+=score[y*w+x];
+        integral[(y+1)*(w+1)+(x+1)]=integral[y*(w+1)+(x+1)]+rowSum;
+      }
+    }
+    const meanRect=(x0,y0,x1,y1)=>{
+      x0=Math.max(0,Math.floor(x0));y0=Math.max(0,Math.floor(y0));
+      x1=Math.min(w,Math.ceil(x1));y1=Math.min(h,Math.ceil(y1));
+      if(x1<=x0||y1<=y0)return 0;
+      const A=integral[y0*(w+1)+x0],B=integral[y0*(w+1)+x1],
+            C=integral[y1*(w+1)+x0],D=integral[y1*(w+1)+x1];
+      return (D-B-C+A)/((x1-x0)*(y1-y0));
+    };
+    const expected=$("#expectedCount").value;
+    const target=expected==="auto"?20:Number(expected);
+    let best=null;
+    const base=w/5.08;
+    for(let step=base*.97;step<=base*1.03;step+=Math.max(1,base*.012)){
+      const cell=step*.92;
+      for(let x0=0;x0<=w*.035;x0+=Math.max(1,w*.006)){
+        if(x0+4*step+cell>w)continue;
+        for(let y0=h*.10;y0<=h*.29;y0+=Math.max(1,h*.006)){
+          if(y0+4*step+cell>h)continue;
+          const vals=[];
+          for(let r=0;r<5;r++)for(let c=0;c<5;c++){
+            const inset=cell*.12;
+            vals.push(meanRect(x0+c*step+inset,y0+r*step+inset,
+              x0+c*step+cell-inset,y0+r*step+cell-inset));
+          }
+          const sorted=[...vals].sort((a,b)=>b-a);
+          const gap=(sorted[target-1]??0)-(sorted[target]??0);
+          const top=sorted.slice(0,target).reduce((a,b)=>a+b,0)/target;
+          const objective=top+.45*gap;
+          if(!best||objective>best.objective)best={objective,step,cell,x0,y0,vals};
+        }
+      }
+    }
+    if(!best){status.className="status warn";status.textContent="自動認識できませんでした。盤面を手動で設定してください。";return}
+    let k=target;
+    if(expected==="auto"){
+      const sorted=[...best.vals].sort((a,b)=>b-a);
+      const candidates=[4,8,12,16,20,24];
+      k=candidates.sort((a,b)=>(sorted[b-1]-sorted[b])-(sorted[a-1]-sorted[a]))[0];
+    }
+    const order=best.vals.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v);
+    boardMask=Array(25).fill(false);order.slice(0,k).forEach(o=>boardMask[o.i]=true);
+    lastDetection={...best,cells:[...boardMask],procW:w,procH:h};
+    renderBoard();drawPreview(im,lastDetection);
+    const gap=order[k-1].v-(order[k]?.v??0);
+    status.className="status "+(gap>.08?"ok":"warn");
+    status.textContent=`${k}マスを自動認識しました。${gap>.08?"認識の分離は良好です。":"境界がやや曖昧なため、盤面を確認してください。"}`;
+  });
+}
+
+$("#fileInput").onchange=e=>loadImageFile(e.target.files[0]);
+$("#drop").ondragover=e=>{e.preventDefault();e.currentTarget.classList.add("drag")};
+$("#drop").ondragleave=e=>e.currentTarget.classList.remove("drag");
+$("#drop").ondrop=e=>{e.preventDefault();e.currentTarget.classList.remove("drag");loadImageFile(e.dataTransfer.files[0])};
+window.addEventListener("paste",e=>{
+  const item=[...e.clipboardData.items].find(i=>i.type.startsWith("image/"));
+  if(item){loadImageFile(item.getAsFile());toast("スクショを貼り付けました")}
+});
+$("#redetect").onclick=()=>currentImage?detectBoard(currentImage):toast("先にスクショを読み込んでください");
+$("#clearBoard").onclick=()=>{boardMask=Array(25).fill(false);renderBoard()};
+$("#fillBoard").onclick=()=>{boardMask=Array(25).fill(true);renderBoard()};
+$("#sample").onclick=()=>{
+  boardMask=[
+    true,false,false,false,false,
+    true,true,true,true,false,
+    true,true,true,true,true,
+    true,true,true,true,true,
+    true,true,true,true,true
+  ];
+  conditionsEl.innerHTML="";addCondition("紫","A",1);addCondition("赤","B",1);
+  renderBoard();toast("今回の問題を読み込みました");
+};
+$("#addCondition").onclick=()=>addCondition("紫","A",1);
+$("#clearConditions").onclick=()=>conditionsEl.innerHTML="";
+$("#enableAll").onclick=()=>{enabledIds=new Set(PIECES.map(p=>p.id));renderPieceFilters()};
+$("#disableAll").onclick=()=>{enabledIds.clear();renderPieceFilters()};
+$("#solve").onclick=solvePuzzle;
+
+addCondition("紫","A",1);addCondition("赤","B",1);
+renderBoard();renderPieceFilters();
+</script>
+</body>
+</html>
