@@ -74,22 +74,45 @@ select,input[type=number]{
 .solveBar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
 .counter{color:var(--muted)}
 .resultEmpty{color:var(--muted);padding:26px 4px;text-align:center}
+.recommendGrid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start
+}
+@media(max-width:980px){.recommendGrid{grid-template-columns:1fr}}
+.recommendCard{
+  background:#10161d;border:1px solid #36404c;border-radius:15px;padding:13px;overflow:hidden
+}
+.priorityHead{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}
+.priorityHead h3{margin:0;font-size:18px}
+.rankSummary{
+  background:#252d37;border:1px solid #46515e;border-radius:999px;padding:6px 9px;
+  color:#dce4ee;font-weight:900;font-size:12px;white-space:nowrap
+}
 .solutionBoard{
-  display:grid;grid-template-columns:repeat(5,minmax(46px,78px));gap:7px;
-  justify-content:start;margin:12px 0
+  display:grid;grid-template-columns:repeat(5,minmax(45px,72px));gap:0;
+  justify-content:start;margin:12px 0;padding:5px;background:#080b10;border-radius:10px
 }
 .solutionCell{
-  aspect-ratio:1;border-radius:10px;border:2px solid #ffffffaa;display:grid;place-items:center;
-  text-align:center;color:#15171b;font-weight:950;font-size:clamp(11px,2.1vw,16px);padding:3px
+  position:relative;aspect-ratio:1;border-style:solid;border-color:#080b10;border-radius:4px;
+  display:grid;place-items:center;text-align:center;color:#15171b;font-weight:950;padding:2px;
+  box-shadow:inset 0 0 0 1px #ffffff35;overflow:hidden
 }
 .solutionCell.off{visibility:hidden}
-.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:10px}
-.legendItem{display:flex;align-items:center;gap:9px;background:#10161d;border:1px solid #2d3640;padding:9px;border-radius:10px}
-.swatch{width:25px;height:25px;border-radius:7px;border:2px solid #ffffffbb}
-.checks{display:grid;gap:7px;margin-top:10px}
-.check{padding:9px 11px;border-radius:10px;background:#102317;color:#ade7b7}
+.pieceMark{
+  position:absolute;left:4px;top:2px;font-size:clamp(14px,3vw,20px);line-height:1;
+  color:#11151b;text-shadow:0 1px 0 #ffffffa8
+}
+.cellLabel{font-size:clamp(9px,1.8vw,13px);line-height:1.05;margin-top:13px}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:7px;margin-top:10px}
+.legendItem{display:flex;align-items:center;gap:7px;background:#0c1218;border:1px solid #2d3640;padding:8px;border-radius:9px;font-size:13px}
+.swatch{
+  width:29px;height:29px;border-radius:7px;border:2px solid #0a0d12;
+  display:grid;place-items:center;color:#11151b;font-weight:950;flex:0 0 29px
+}
+.checks{display:grid;gap:6px;margin-top:10px}
+.check{padding:8px 10px;border-radius:9px;background:#102317;color:#ade7b7;font-size:13px}
 .check.bad{background:#32191a;color:#ffb3b0}
-.nav{display:flex;gap:8px;align-items:center;margin-top:12px}
+.cardActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:11px}
+.priorityNote{font-size:12px;color:var(--muted);line-height:1.5}
 details{margin-top:14px}
 summary{cursor:pointer;color:#d6c9ff;font-weight:800}
 .pieceFilters{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px;max-height:360px;overflow:auto;padding-right:4px}
@@ -107,9 +130,9 @@ summary{cursor:pointer;color:#d6c9ff;font-weight:800}
   <div>
     <div class="kicker">Kingdom Hadou Utility</div>
     <h1>親睦パズルソルバー</h1>
-    <div class="subtitle">スクショを貼り付けて盤面を自動認識し、条件を設定して解答します。認識ミスはマスをタップして修正できます。</div>
+    <div class="subtitle">スクショから盤面を認識し、条件を満たす解答を「C多め・B多め・A多め」の3候補に整理します。認識ミスはマスをタップして修正できます。</div>
   </div>
-  <div class="badge">回転・反転は一切しません</div>
+  <div class="badge">回転・反転なし／C→B→A優先</div>
 </header>
 
 <div class="layout">
@@ -177,7 +200,7 @@ summary{cursor:pointer;color:#d6c9ff;font-weight:800}
 
 <section class="card" style="margin-top:16px">
   <h2>3. 解答</h2>
-  <div id="result"><div class="resultEmpty">解答を探すと、ここに完成図が表示されます。</div></div>
+  <div id="result"><div class="resultEmpty">解答を探すと、C多め・B多め・A多めの3候補が表示されます。</div></div>
 </section>
 </div>
 <div class="toast" id="toast"></div>
@@ -192,8 +215,8 @@ const COLOR_HEX={"紫":"#a987e8","黄":"#efc45e","青":"#70b8e8","赤":"#e76f73"
 let boardMask=Array(25).fill(false);
 let currentImage=null;
 let enabledIds=new Set(PIECES.map(p=>p.id));
-let solutions=[];
-let solutionIndex=0;
+let recommendations=[];
+let searchWasLimited=false;
 let lastDetection=null;
 
 const $=s=>document.querySelector(s);
@@ -301,6 +324,39 @@ function conditionStillPossible(usedSet,remainingSlots,conds){
   }
   return true;
 }
+function solutionKey(sol){
+  return sol.map(pl=>`${pl.pieceIndex}@${pl.ox},${pl.oy}`).sort().join("|");
+}
+function rankCountsForSolution(sol){
+  const counts={A:0,B:0,C:0};
+  sol.forEach(pl=>counts[PIECES[pl.pieceIndex].rank]++);
+  return counts;
+}
+function compareForMode(a,b,mode){
+  const ca=a.counts,cb=b.counts;
+  let order;
+  if(mode==="C") order=["C","B","A"];
+  else if(mode==="B") order=["B","C","A"];
+  else order=["A","B","C"];
+  for(const rank of order){
+    if(ca[rank]!==cb[rank]) return cb[rank]-ca[rank];
+  }
+  return a.key.localeCompare(b.key);
+}
+function chooseRecommendations(all){
+  const modes=[
+    {mode:"C",title:"C多め",note:"入手しやすいCピースを最優先"},
+    {mode:"B",title:"B多め",note:"Bピースを最優先した中間案"},
+    {mode:"A",title:"A多め",note:"Aピースを多く使う候補"}
+  ];
+  const usedKeys=new Set();
+  return modes.map(meta=>{
+    const sorted=[...all].sort((a,b)=>compareForMode(a,b,meta.mode));
+    const picked=sorted.find(x=>!usedKeys.has(x.key))||sorted[0];
+    if(picked)usedKeys.add(picked.key);
+    return {...meta,...picked};
+  }).filter(Boolean);
+}
 function solvePuzzle(){
   const board=boardCellsSet(), n=board.size;
   if(!n){toast("盤面を設定してください");return}
@@ -321,20 +377,35 @@ function solvePuzzle(){
       }
     }
   });
-  solutions=[]; solutionIndex=0;
-  const limit=200;
+
+  const found=[],foundKeys=new Set();
   const covered=new Set(),used=new Set(),chosen=[];
+  const start=performance.now();
+  const timeLimitMs=3500;
+  const solutionLimit=100000;
+  let nodes=0;
+  searchWasLimited=false;
+
   function rec(){
-    if(solutions.length>=limit)return;
+    nodes++;
+    if(found.length>=solutionLimit || performance.now()-start>timeLimitMs){
+      searchWasLimited=true;return;
+    }
     if(covered.size===board.size){
       if(chosen.length===pieceSlots && conditionsSatisfied([...used],conds)){
-        solutions.push(chosen.map(i=>placements[i]));
+        const sol=chosen.map(i=>placements[i]);
+        const key=solutionKey(sol);
+        if(!foundKeys.has(key)){
+          foundKeys.add(key);
+          found.push({solution:sol,key,counts:rankCountsForSolution(sol)});
+        }
       }
       return;
     }
     if(chosen.length>=pieceSlots)return;
     if(!conditionStillPossible(used,pieceSlots-chosen.length,conds))return;
-    let bestCell=null,bestCandidates=null;
+
+    let bestCandidates=null;
     for(const c of board){
       if(covered.has(c))continue;
       const cand=byCell.get(c).filter(i=>{
@@ -342,83 +413,137 @@ function solvePuzzle(){
         return !used.has(p.pieceIndex)&&p.cells.every(x=>!covered.has(x));
       });
       if(!cand.length)return;
-      if(bestCandidates===null||cand.length<bestCandidates.length){bestCell=c;bestCandidates=cand}
+      if(bestCandidates===null||cand.length<bestCandidates.length)bestCandidates=cand;
     }
+
     for(const idx of bestCandidates){
       const p=placements[idx];
       used.add(p.pieceIndex);chosen.push(idx);p.cells.forEach(c=>covered.add(c));
       rec();
       p.cells.forEach(c=>covered.delete(c));chosen.pop();used.delete(p.pieceIndex);
-      if(solutions.length>=limit)return;
+      if(searchWasLimited)return;
     }
   }
-  const start=performance.now();rec();const ms=Math.round(performance.now()-start);
-  if(!solutions.length){
+
+  rec();
+  const ms=Math.round(performance.now()-start);
+  if(!found.length){
     resultEl.innerHTML=`<div class="resultEmpty">条件を満たす配置が見つかりませんでした。盤面・条件・使用可能ピースを確認してください。</div>`;
     $("#solveInfo").textContent=`解なし（${ms}ms）`;return;
   }
-  $("#solveInfo").textContent=`${solutions.length}${solutions.length===limit?"件以上":"件"}の解候補（${ms}ms）`;
-  renderSolution();
+  recommendations=chooseRecommendations(found);
+  $("#solveInfo").textContent=`${found.length.toLocaleString()}件を比較し、3候補を選出（${ms}ms）${searchWasLimited?" ※探索上限あり":""}`;
+  renderRecommendations();
 }
-function renderSolution(){
-  const sol=solutions[solutionIndex];
+const CIRCLED=["①","②","③","④","⑤","⑥"];
+function cellBoundaryStyle(owner,i,k){
+  const r=Math.floor(i/5),c=i%5;
+  const same=idx=>idx>=0&&idx<25&&boardMask[idx]&&owner[idx]===k;
+  const top=same(i-5)?1:5;
+  const right=same(i+1)&&c<4?1:5;
+  const bottom=same(i+5)?1:5;
+  const left=same(i-1)&&c>0?1:5;
+  return `border-width:${top}px ${right}px ${bottom}px ${left}px`;
+}
+function recommendationHtml(rec,index){
+  const sol=rec.solution;
   const owner=Array(25).fill(null);
   sol.forEach((pl,k)=>pl.cells.forEach(s=>{
     const [r,c]=s.split(",").map(Number);owner[r*5+c]=k;
   }));
   const usedPieces=sol.map(pl=>PIECES[pl.pieceIndex]);
-  let html=`<div class="nav">
-    <button class="btn" id="prevSol">← 前</button>
-    <strong>${solutionIndex+1} / ${solutions.length}${solutions.length===200?"（先頭200件）":""}</strong>
-    <button class="btn" id="nextSol">次 →</button>
-    <button class="btn good" id="exportPng">完成図をPNG保存</button>
-  </div><div class="solutionBoard">`;
+  let html=`<article class="recommendCard">
+    <div class="priorityHead">
+      <h3>${rec.title}</h3>
+      <span class="rankSummary">C ${rec.counts.C} ／ B ${rec.counts.B} ／ A ${rec.counts.A}</span>
+    </div>
+    <div class="priorityNote">${rec.note}</div>
+    <div class="solutionBoard">`;
   for(let i=0;i<25;i++){
     if(!boardMask[i]){html+=`<div class="solutionCell off"></div>`;continue}
     const k=owner[i],p=usedPieces[k];
-    html+=`<div class="solutionCell" style="background:${COLOR_HEX[p.color]}">${p.label}</div>`;
+    html+=`<div class="solutionCell" style="background:${COLOR_HEX[p.color]};${cellBoundaryStyle(owner,i,k)}">
+      <span class="pieceMark">${CIRCLED[k]||k+1}</span>
+      <span class="cellLabel">${p.rank}${p.color}${p.number}</span>
+    </div>`;
   }
   html+=`</div><div class="legend">`;
-  usedPieces.forEach(p=>{
-    html+=`<div class="legendItem"><span class="swatch" style="background:${COLOR_HEX[p.color]}"></span><strong>${p.label}</strong></div>`;
+  usedPieces.forEach((p,k)=>{
+    html+=`<div class="legendItem">
+      <span class="swatch" style="background:${COLOR_HEX[p.color]}">${CIRCLED[k]||k+1}</span>
+      <strong>${p.label}</strong>
+    </div>`;
   });
   html+=`</div><div class="checks">`;
   const conds=getConditions();
-  if(!conds.length) html+=`<div class="check">条件指定なし</div>`;
+  if(!conds.length)html+=`<div class="check">条件指定なし</div>`;
   conds.forEach(c=>{
     const found=usedPieces.filter(p=>p.color===c.color&&RANK_VALUE[p.rank]>=RANK_VALUE[c.minRank]).length;
     html+=`<div class="check ${found>=c.count?"":"bad"}">✓ ${c.color} ${c.minRank}以上：${found} / ${c.count}</div>`;
   });
-  html+=`</div><p class="note">すべて登録時の向きのまま配置しています。回転・反転した候補は探索していません。</p>`;
-  resultEl.innerHTML=html;
-  $("#prevSol").onclick=()=>{solutionIndex=(solutionIndex-1+solutions.length)%solutions.length;renderSolution()};
-  $("#nextSol").onclick=()=>{solutionIndex=(solutionIndex+1)%solutions.length;renderSolution()};
-  $("#exportPng").onclick=exportSolutionPng;
+  html+=`</div><div class="cardActions">
+    <button class="btn good exportCandidate" data-index="${index}">この完成図をPNG保存</button>
+  </div></article>`;
+  return html;
 }
-function exportSolutionPng(){
-  const sol=solutions[solutionIndex],owner=Array(25).fill(null);
-  sol.forEach((pl,k)=>pl.cells.forEach(s=>{const [r,c]=s.split(",").map(Number);owner[r*5+c]=k}));
+function renderRecommendations(){
+  let html=`<div class="recommendGrid">`;
+  recommendations.forEach((rec,i)=>html+=recommendationHtml(rec,i));
+  html+=`</div><p class="note">太い黒線がピースの外周です。同じ色が隣り合っても、①〜⑥の番号と外周線で別ピースを判別できます。すべて登録時の向きのままで、回転・反転は行っていません。${searchWasLimited?"今回は端末負荷を抑えるため探索時間に上限を設けています。":""}</p>`;
+  resultEl.innerHTML=html;
+  resultEl.querySelectorAll(".exportCandidate").forEach(btn=>{
+    btn.onclick=()=>exportRecommendationPng(Number(btn.dataset.index));
+  });
+}
+function exportRecommendationPng(recIndex){
+  const rec=recommendations[recIndex];
+  const sol=rec.solution,owner=Array(25).fill(null);
+  sol.forEach((pl,k)=>pl.cells.forEach(s=>{
+    const [r,c]=s.split(",").map(Number);owner[r*5+c]=k;
+  }));
   const used=sol.map(pl=>PIECES[pl.pieceIndex]);
-  const cv=document.createElement("canvas");cv.width=1000;cv.height=1160;
+  const cv=document.createElement("canvas");cv.width=1000;cv.height=1230;
   const g=cv.getContext("2d");g.fillStyle="#111827";g.fillRect(0,0,cv.width,cv.height);
-  g.fillStyle="#f4f7fb";g.font="bold 46px sans-serif";g.fillText("親睦パズル 完成配置",70,72);
-  g.fillStyle="#b7c0cc";g.font="25px sans-serif";g.fillText("回転・反転なし",72,112);
-  const x0=70,y0=160,size=145,gap=12;
+  g.fillStyle="#f4f7fb";g.font="bold 46px sans-serif";g.fillText(`親睦パズル ${rec.title}`,70,70);
+  g.fillStyle="#b7c0cc";g.font="25px sans-serif";
+  g.fillText(`C ${rec.counts.C} ／ B ${rec.counts.B} ／ A ${rec.counts.A}　回転・反転なし`,72,112);
+
+  const x0=70,y0=155,size=145;
   for(let r=0;r<5;r++)for(let c=0;c<5;c++){
     const i=r*5+c;if(!boardMask[i])continue;
-    const p=used[owner[i]],x=x0+c*(size+gap),y=y0+r*(size+gap);
-    g.fillStyle=COLOR_HEX[p.color];roundRect(g,x,y,size,size,18,true);
-    g.strokeStyle="#ffffff";g.lineWidth=4;roundRect(g,x,y,size,size,18,false,true);
-    g.fillStyle="#17191e";g.textAlign="center";g.font="bold 26px sans-serif";
-    g.fillText(p.label,x+size/2,y+size/2+9);
+    const k=owner[i],p=used[k],x=x0+c*size,y=y0+r*size;
+    g.fillStyle=COLOR_HEX[p.color];g.fillRect(x,y,size,size);
+    g.strokeStyle="#ffffff48";g.lineWidth=1;g.strokeRect(x+.5,y+.5,size-1,size-1);
   }
-  g.textAlign="left";g.fillStyle="#f4f7fb";g.font="bold 28px sans-serif";g.fillText("使用ピース",70,990);
+  g.strokeStyle="#080b10";g.lineCap="square";
+  for(let r=0;r<5;r++)for(let c=0;c<5;c++){
+    const i=r*5+c;if(!boardMask[i])continue;
+    const k=owner[i],x=x0+c*size,y=y0+r*size;
+    const same=(rr,cc)=>rr>=0&&rr<5&&cc>=0&&cc<5&&boardMask[rr*5+cc]&&owner[rr*5+cc]===k;
+    g.lineWidth=8;g.beginPath();
+    if(!same(r-1,c)){g.moveTo(x,y);g.lineTo(x+size,y)}
+    if(!same(r,c+1)){g.moveTo(x+size,y);g.lineTo(x+size,y+size)}
+    if(!same(r+1,c)){g.moveTo(x,y+size);g.lineTo(x+size,y+size)}
+    if(!same(r,c-1)){g.moveTo(x,y);g.lineTo(x,y+size)}
+    g.stroke();
+    const p=used[k];
+    g.fillStyle="#15171b";g.textAlign="left";g.font="bold 29px sans-serif";
+    g.fillText(CIRCLED[k]||String(k+1),x+10,y+34);
+    g.textAlign="center";g.font="bold 22px sans-serif";
+    g.fillText(`${p.rank}${p.color}${p.number}`,x+size/2,y+size/2+10);
+  }
+
+  g.textAlign="left";g.fillStyle="#f4f7fb";g.font="bold 28px sans-serif";g.fillText("使用ピース",70,930);
   used.forEach((p,i)=>{
-    const x=70+(i%3)*295,y=1025+Math.floor(i/3)*55;
-    g.fillStyle=COLOR_HEX[p.color];g.fillRect(x,y-24,30,30);
-    g.fillStyle="#f4f7fb";g.font="bold 23px sans-serif";g.fillText(p.label,x+43,y);
+    const x=70+(i%3)*295,y=980+Math.floor(i/3)*62;
+    g.fillStyle=COLOR_HEX[p.color];g.fillRect(x,y-28,34,34);
+    g.strokeStyle="#080b10";g.lineWidth=3;g.strokeRect(x,y-28,34,34);
+    g.fillStyle="#15171b";g.textAlign="center";g.font="bold 22px sans-serif";g.fillText(CIRCLED[i]||String(i+1),x+17,y-3);
+    g.fillStyle="#f4f7fb";g.textAlign="left";g.font="bold 23px sans-serif";g.fillText(p.label,x+46,y);
   });
-  const a=document.createElement("a");a.download="shinboku_solution.png";a.href=cv.toDataURL("image/png");a.click();
+  const a=document.createElement("a");
+  a.download=`shinboku_${rec.mode.toLowerCase()}_priority.png`;
+  a.href=cv.toDataURL("image/png");a.click();
 }
 function roundRect(ctx,x,y,w,h,r,fill,stroke){
   ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill)ctx.fill();if(stroke)ctx.stroke();
