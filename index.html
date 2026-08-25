@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>キングダム覇道 親睦パズルソルバー</title>
+<title>キングダム覇道 親睦パズルソルバー v4</title>
 <style>
 :root{
   --bg:#0d1117;--panel:#161b22;--panel2:#21262d;--line:#30363d;
@@ -122,17 +122,69 @@ summary{cursor:pointer;color:#d6c9ff;font-weight:800}
 .note{font-size:13px;line-height:1.65;color:var(--muted)}
 .kicker{font-size:12px;font-weight:900;letter-spacing:.08em;color:#baa6ff;text-transform:uppercase}
 .toast{position:fixed;right:16px;bottom:16px;background:#242c36;border:1px solid #576372;color:white;padding:12px 15px;border-radius:11px;display:none;z-index:20}
+
+/* v4: simple member passcode gate (client-side / GitHub Pages) */
+.authGate{
+  min-height:100dvh;display:grid;place-items:center;padding:22px;
+  background:
+    radial-gradient(circle at 20% 15%,#2a1f49 0,transparent 32%),
+    radial-gradient(circle at 85% 80%,#132c35 0,transparent 30%),
+    linear-gradient(180deg,#0d1117,#111827);
+}
+.authCard{
+  width:min(440px,100%);background:rgba(22,27,34,.97);border:1px solid #3b4552;
+  border-radius:20px;padding:26px;box-shadow:0 18px 50px #0008;text-align:center
+}
+.authLogo{
+  width:70px;height:70px;margin:0 auto 15px;border-radius:20px;
+  display:grid;place-items:center;font-size:34px;font-weight:950;
+  background:linear-gradient(135deg,#7651d6,#9b6cf2);box-shadow:0 10px 30px #7651d655
+}
+.authCard h1{font-size:26px;margin:0 0 8px}
+.authCard p{color:var(--muted);line-height:1.65;margin:0 0 18px}
+.authInput{
+  width:100%;background:#0c1218;border:1px solid #526071;color:#fff;border-radius:12px;
+  padding:13px 14px;font-size:18px;outline:none;text-align:center;letter-spacing:.08em
+}
+.authInput:focus{border-color:#9b6cf2;box-shadow:0 0 0 3px #9b6cf233}
+.authButton{
+  width:100%;margin-top:12px;border:0;border-radius:12px;padding:13px 14px;
+  color:white;font-weight:900;cursor:pointer;background:linear-gradient(135deg,#7651d6,#9b6cf2)
+}
+.authError{
+  min-height:22px;margin-top:10px;color:#ff9d9a;font-weight:800;font-size:14px
+}
+.authNote{margin-top:14px!important;font-size:12px}
+.logoutBtn{
+  border:1px solid #48515c;background:#1a2028;color:#c8d1dc;padding:7px 10px;
+  border-radius:9px;font-size:12px;font-weight:800;cursor:pointer
+}
+
 </style>
 </head>
 <body>
-<div class="app">
+
+<div id="authGate" class="authGate">
+  <div class="authCard">
+    <div class="authLogo">親</div>
+    <h1>親睦パズルソルバー</h1>
+    <p>軍団員専用ページです。<br>パスコードを入力してください。</p>
+    <input id="authPasscode" class="authInput" type="password" autocomplete="current-password"
+           inputmode="text" placeholder="パスコード">
+    <button id="authLogin" class="authButton" type="button">ログイン</button>
+    <div id="authError" class="authError" aria-live="polite"></div>
+    <p class="authNote">このブラウザで一度認証すると、次回から入力を省略します。</p>
+  </div>
+</div>
+
+<div class="app" id="mainApp" style="display:none">
 <header>
   <div>
     <div class="kicker">Kingdom Hadou Utility</div>
     <h1>親睦パズルソルバー</h1>
     <div class="subtitle">スクショから盤面を認識し、条件を満たす解答を「C多め・B多め・A多め」の3候補に整理します。認識ミスはマスをタップして修正できます。</div>
   </div>
-  <div class="badge">v3／回転・反転なし／C→B→A優先</div>
+  <div style="display:grid;gap:8px;justify-items:end"><div class="badge">v4／軍団員専用</div><button id="logoutAuth" class="logoutBtn" type="button">この端末の認証を解除</button></div>
 </header>
 
 <div class="layout">
@@ -207,6 +259,73 @@ summary{cursor:pointer;color:#d6c9ff;font-weight:800}
 
 <script>
 "use strict";
+
+const AUTH_HASH = "85e26f18d77f1251ec4683b86b75dbdcbd9714088a9bcccd4ab4a62c4358c9fc";
+const AUTH_STORAGE_KEY = "shinboku_auth_v4";
+const AUTH_STORAGE_VALUE = "85e26f18d77f1251ec4683b86b75dbdcbd9714088a9bcccd4ab4a62c4358c9fc";
+
+async function sha256Hex(text){
+  if(window.crypto && crypto.subtle){
+    const data = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,"0")).join("");
+  }
+  throw new Error("このブラウザでは認証処理を利用できません。Chrome / Safari / Edge の最新版で開いてください。");
+}
+function showMainApp(){
+  const gate=document.getElementById("authGate");
+  const app=document.getElementById("mainApp");
+  if(gate) gate.style.display="none";
+  if(app) app.style.display="block";
+}
+function showAuthGate(){
+  const gate=document.getElementById("authGate");
+  const app=document.getElementById("mainApp");
+  if(app) app.style.display="none";
+  if(gate) gate.style.display="grid";
+  const input=document.getElementById("authPasscode");
+  if(input) setTimeout(()=>input.focus(),50);
+}
+async function tryLogin(){
+  const input=document.getElementById("authPasscode");
+  const err=document.getElementById("authError");
+  const button=document.getElementById("authLogin");
+  const value=input ? input.value : "";
+  if(!value){ if(err) err.textContent="パスコードを入力してください。"; return; }
+  if(button){ button.disabled=true; button.textContent="確認中…"; }
+  try{
+    const digest=await sha256Hex(value);
+    if(digest===AUTH_HASH){
+      localStorage.setItem(AUTH_STORAGE_KEY,AUTH_STORAGE_VALUE);
+      if(input) input.value="";
+      if(err) err.textContent="";
+      showMainApp();
+    }else{
+      if(err) err.textContent="パスコードが違います。";
+      if(input){ input.value=""; input.focus(); }
+    }
+  }catch(e){
+    if(err) err.textContent=e.message || "認証処理に失敗しました。";
+  }finally{
+    if(button){ button.disabled=false; button.textContent="ログイン"; }
+  }
+}
+(function initAuth(){
+  try{
+    if(localStorage.getItem(AUTH_STORAGE_KEY)===AUTH_STORAGE_VALUE){
+      showMainApp();
+    }else{
+      showAuthGate();
+    }
+  }catch(e){ showAuthGate(); }
+  document.getElementById("authLogin")?.addEventListener("click",tryLogin);
+  document.getElementById("authPasscode")?.addEventListener("keydown",e=>{ if(e.key==="Enter") tryLogin(); });
+  document.getElementById("logoutAuth")?.addEventListener("click",()=>{
+    try{ localStorage.removeItem(AUTH_STORAGE_KEY); }catch(e){}
+    showAuthGate();
+  });
+})();
+
 const PIECES = [{"id":"A_P_6","rank":"A","color":"紫","number":6,"label":"A紫6","shape":[[0,0],[1,0],[1,1],[1,2]]},{"id":"A_P_3_1","rank":"A","color":"紫","number":3,"label":"A紫3①","shape":[[0,0],[1,0],[2,0],[2,1]]},{"id":"A_Y_3_1","rank":"A","color":"黄","number":3,"label":"A黄3①","shape":[[0,0],[0,1],[0,2],[1,2]]},{"id":"A_B_3_1","rank":"A","color":"青","number":3,"label":"A青3①","shape":[[0,0],[1,0],[2,0],[2,1]]},{"id":"A_R_4_1","rank":"A","color":"赤","number":4,"label":"A赤4①","shape":[[0,0],[1,0],[2,0],[2,1]]},{"id":"A_P_5","rank":"A","color":"紫","number":5,"label":"A紫5","shape":[[0,0],[0,1],[1,1],[2,1]]},{"id":"A_Y_5","rank":"A","color":"黄","number":5,"label":"A黄5","shape":[[0,0],[1,0],[1,1],[1,2]]},{"id":"A_Y_2","rank":"A","color":"黄","number":2,"label":"A黄2","shape":[[0,0],[0,1],[1,1],[2,1]]},{"id":"A_B_3_2","rank":"A","color":"青","number":3,"label":"A青3②","shape":[[0,0],[0,1],[0,2],[1,2]]},{"id":"A_R_4_2","rank":"A","color":"赤","number":4,"label":"A赤4②","shape":[[0,0],[1,0],[1,1],[1,2]]},{"id":"A_P_3_2","rank":"A","color":"紫","number":3,"label":"A紫3②","shape":[[0,0],[0,1],[0,2],[1,2]]},{"id":"A_Y_3_2","rank":"A","color":"黄","number":3,"label":"A黄3②","shape":[[0,0],[1,0],[2,0],[2,1]]},{"id":"A_B_6","rank":"A","color":"青","number":6,"label":"A青6","shape":[[0,0],[1,0],[1,1],[1,2]]},{"id":"A_B_2","rank":"A","color":"青","number":2,"label":"A青2","shape":[[0,0],[0,1],[1,1],[2,1]]},{"id":"A_R_3","rank":"A","color":"赤","number":3,"label":"A赤3","shape":[[0,0],[0,1],[1,1],[2,1]]},{"id":"A_R_2","rank":"A","color":"赤","number":2,"label":"A赤2","shape":[[0,0],[0,1],[0,2],[1,2]]},{"id":"B_P_4_1","rank":"B","color":"紫","number":4,"label":"B紫4①","shape":[[1,0],[2,0],[0,1],[1,1]]},{"id":"B_Y_7","rank":"B","color":"黄","number":7,"label":"B黄7","shape":[[0,0],[1,0],[1,1],[2,1]]},{"id":"B_B_7_1","rank":"B","color":"青","number":7,"label":"B青7①","shape":[[0,0],[0,1],[1,1],[1,2]]},{"id":"B_B_2","rank":"B","color":"青","number":2,"label":"B青2","shape":[[1,0],[0,1],[1,1],[0,2]]},{"id":"B_P_8","rank":"B","color":"紫","number":8,"label":"B紫8","shape":[[0,0],[1,0],[1,1],[2,1]]},{"id":"B_P_2","rank":"B","color":"紫","number":2,"label":"B紫2","shape":[[1,0],[0,1],[1,1],[0,2]]},{"id":"B_Y_3","rank":"B","color":"黄","number":3,"label":"B黄3","shape":[[1,0],[0,1],[1,1],[0,2]]},{"id":"B_B_7_2","rank":"B","color":"青","number":7,"label":"B青7②","shape":[[1,0],[2,0],[0,1],[1,1]]},{"id":"B_R_5","rank":"B","color":"赤","number":5,"label":"B赤5","shape":[[0,0],[0,1],[1,1],[1,2]]},{"id":"B_P_4_2","rank":"B","color":"紫","number":4,"label":"B紫4②","shape":[[0,0],[0,1],[1,1],[1,2]]},{"id":"B_Y_8","rank":"B","color":"黄","number":8,"label":"B黄8","shape":[[0,0],[0,1],[1,1],[1,2]]},{"id":"B_Y_1","rank":"B","color":"黄","number":1,"label":"B黄1","shape":[[1,0],[2,0],[0,1],[1,1]]},{"id":"B_B_6","rank":"B","color":"青","number":6,"label":"B青6","shape":[[0,0],[1,0],[1,1],[2,1]]},{"id":"B_R_3_1","rank":"B","color":"赤","number":3,"label":"B赤3①","shape":[[1,0],[2,0],[0,1],[1,1]]},{"id":"B_R_3_2","rank":"B","color":"赤","number":3,"label":"B赤3②","shape":[[0,0],[1,0],[1,1],[2,1]]},{"id":"B_R_2","rank":"B","color":"赤","number":2,"label":"B赤2","shape":[[1,0],[0,1],[1,1],[0,2]]},{"id":"C_P_5_1","rank":"C","color":"紫","number":5,"label":"C紫5①","shape":[[0,0],[0,1],[1,1],[0,2]]},{"id":"C_Y_9_1","rank":"C","color":"黄","number":9,"label":"C黄9①","shape":[[1,0],[0,1],[1,1],[2,1]]},{"id":"C_B_9","rank":"C","color":"青","number":9,"label":"C青9","shape":[[1,0],[0,1],[1,1],[2,1]]},{"id":"C_R_6_1","rank":"C","color":"赤","number":6,"label":"C赤6①","shape":[[0,0],[1,0],[2,0],[1,1]]},{"id":"C_P_4","rank":"C","color":"紫","number":4,"label":"C紫4","shape":[[1,0],[0,1],[1,1],[2,1]]},{"id":"C_Y_9_2","rank":"C","color":"黄","number":9,"label":"C黄9②","shape":[[0,0],[0,1],[1,1],[0,2]]},{"id":"C_B_7","rank":"C","color":"青","number":7,"label":"C青7","shape":[[0,0],[1,0],[2,0],[1,1]]},{"id":"C_R_6_2","rank":"C","color":"赤","number":6,"label":"C赤6②","shape":[[0,0],[0,1],[1,1],[0,2]]},{"id":"C_P_5_2","rank":"C","color":"紫","number":5,"label":"C紫5②","shape":[[0,0],[1,0],[2,0],[1,1]]},{"id":"C_P_1","rank":"C","color":"紫","number":1,"label":"C紫1","shape":[[1,0],[0,1],[1,1],[1,2]]},{"id":"C_Y_6","rank":"C","color":"黄","number":6,"label":"C黄6","shape":[[0,0],[1,0],[2,0],[1,1]]},{"id":"C_B_6","rank":"C","color":"青","number":6,"label":"C青6","shape":[[0,0],[0,1],[1,1],[0,2]]},{"id":"C_R_2","rank":"C","color":"赤","number":2,"label":"C赤2","shape":[[1,0],[0,1],[1,1],[2,1]]}];
 const RANK_VALUE={A:3,B:2,C:1};
 const COLOR_CSS={"紫":"var(--purple)","黄":"var(--yellow)","青":"var(--blue)","赤":"var(--red)"};
